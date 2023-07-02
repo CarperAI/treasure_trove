@@ -16,7 +16,7 @@ pip install treasure_trove
 Fill me in please! Don’t forget code examples:
 
 ``` python
-1+1
+1 + 1
 ```
 
     2
