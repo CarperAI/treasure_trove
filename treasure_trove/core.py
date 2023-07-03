@@ -21,7 +21,9 @@ def classify(x, labels, llm_labeler, max_failures=5, default_label=0):
     failures = 0
     while failures < max_failures:
         try:
-            return labels.index(llm_labeler(x)[0])
+            label = labels.index(llm_labeler(x)[0])
+            time.sleep(1)
+            return label
         except Exception as e:
             failures += 1
             print(e)
@@ -32,7 +34,7 @@ def classify(x, labels, llm_labeler, max_failures=5, default_label=0):
 
 # %% ../nbs/00_core.ipynb 5
 def label_dataset(
-    dataset, text_column, labeler_model, labels, sample=0.1, num_workers=4
+    dataset, text_column, labeler_model, labels, sample=0.1, num_workers=4, max_chars=4_096
 ):
     """
     Filters a dataset using a labeler model.
@@ -45,6 +47,7 @@ def label_dataset(
         sample (float): The fraction of the dataset to label and use for filtering
         batch_size (int): Batch size for labeling
         num_workers (int): Number of workers for labeling
+        max_chars (int): Maximum number of characters to truncate the text to before labeling (reduces rate limiting errors)
     """
 
     # Get a subset of the dataset
@@ -52,7 +55,7 @@ def label_dataset(
 
     # Label the subset
     subset = subset.map(
-        lambda x: {"label": classify(x[text_column], labels, labeler_model)},
+        lambda x: {"label": classify(x[text_column][:max_chars], labels, labeler_model)},
         batched=False,
         num_proc=num_workers,
     )
@@ -112,6 +115,9 @@ def train_labeler(
     def compute_metrics(eval_preds):
         metric = evaluate.load("glue", "mrpc")
         logits, labels = eval_preds
+        if isinstance(logits, tuple): # Some models return tuples
+            logits = logits[0]
+        print(logits.shape, labels)
         predictions = np.argmax(logits, axis=-1)
         return metric.compute(predictions=predictions, references=labels)
 
