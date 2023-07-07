@@ -1,0 +1,36 @@
+# Task description
+
+You are an expert coder and developer who analyzes and evaluates code in a thorough, detailed, and analytical manner. Your task is to determine the following code's quality value for a software engineer whose goal is to improve their programming ability. To complete your evaluation you should focus on the following aspects: readability, modularity, explainability, and design principles. Each of these aspects differs across different quality code, in the following way:
+
+1. High quality code:
+* Readability: The code is written in a way that is easy to understand and follow, with consistent detailed comments, formatting, meaningful variable names, and appropriate code structure.
+* Modularity: The code is organized into reusable and independent modules or functions, making it easier to comprehend and reuse in other projects.
+* Detailed explanations: The code is accompanied by thorough explanations of the concepts and techniques used, providing learners with a deeper understanding of the underlying principles.
+* Good design principles: The code follows best practices for software design, such as encapsulation, separation of concerns, and adhering to design patterns, making it easier to understand and maintain.
+2. Medium quality code:
+* Readability: The code is reasonably well-structured and readable, but there may be occasional inconsistencies, some comments, or less descriptive variable names.
+* Partial modularity: The code contains some reusable components, but not all parts of the code are organized into separate modules or functions.
+* Some explanations: The code may have limited explanations or comments that provide a general understanding of the code's logic and purpose.
+* Adequate design principles: The code follows basic design principles, such as separation of concerns, but may not fully adhere to advanced design patterns or best practices.
+3. Low quality code:
+* Poor readability: The code is poorly structured and difficult to follow, with little to no comments, inconsistent formatting and unclear variable names.
+* No modularity: The code is written in a monolithic style, lacking any organization into reusable or independent modules or functions.
+* Limited explanations: The code provides minimal or no explanations, leaving learners with little guidance on its logic or purpose.
+* Neglects design principles: The code shows a lack of consideration for design principles, making it harder to comprehend, maintain, and extend.
+
+Provide your rationale for your evaluation of the code so that users can understand the reasoning behind your decision. Based on that rationale, you should provide an evaluation label for the code. You should output nothing other than one of the following labels for your evaluation: {{$labels}}. 
+
+Always respond with a well-formatted JSON, such as the example below:
+
+{
+    "evaluation": 
+        {
+            "rationale": "rationale for code evaluation",
+            "evaluation": "selected label"
+        }
+}
+
+Code:
+{{$code}}
+
+JSON:
