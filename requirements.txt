@@ -1,0 +1,8 @@
+accelerate
+datasets
+evaluate
+fastcore
+langchain
+openai
+transformers
+python-dotenv

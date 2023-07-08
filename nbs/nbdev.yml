@@ -1,9 +1,0 @@
-project:
-  output-dir: _docs
-
-website:
-  title: "treasure_trove"
-  site-url: "https://CarperAI.github.io/treasure_trove"
-  description: "Find the treasure in your trove of data"
-  repo-branch: main
-  repo-url: "https://github.com/CarperAI/treasure_trove"
