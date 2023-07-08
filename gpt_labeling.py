@@ -10,11 +10,16 @@ from treasure_trove.core import LLMLabeler, instruction
 load_dotenv(".env")
 api_key = os.environ["OPENAI_KEY"]
 labels = ["high quality", "medium quality", "low quality"]
+secondary_labels = ["high", "medium", "low"]
 lang = "python"
 processed_subsets = []
 max_chars = 4_096
 num_workers = 8
-labeler = LLMLabeler(instruction, labels, model_name="gpt-3.5-turbo", api_key=api_key)
+labeler = LLMLabeler(
+    instruction,
+    labels,
+    secondary_labels=secondary_labels,
+)
 res = labeler("def create()")
 print(res)
 
