@@ -1,6 +1,5 @@
-import time
 import re
-from dotenv import load_dotenv
+import os
 
 from transformers import (
     AutoModelForSequenceClassification,
@@ -8,100 +7,13 @@ from transformers import (
     DataCollatorWithPadding,
     Trainer,
 )
-from langchain.prompts.chat import (
-    ChatPromptTemplate,
-    SystemMessagePromptTemplate,
-    HumanMessagePromptTemplate,
-)
-from dotenv import load_dotenv
 import time
-from langchain.callbacks import get_openai_callback, OpenAICallbackHandler
+import openai
 
-from pydantic import BaseModel, Field
+openai.api_key = os.getenv("OPENAI_KEY")
 
-from datasets import concatenate_datasets, load_dataset
+
 from typing import List
-from langchain.output_parsers import PydanticOutputParser
-from langchain.chat_models import AzureChatOpenAI, ChatOpenAI
-from langchain.prompts import PromptTemplate
-
-
-class LLMLabelerParser(BaseModel):
-    labels: List = Field(
-        ..., title="Labels", description="Labels that the LLM classifies the text as"
-    )
-
-
-class LLMLabeler:
-    def __init__(
-        self,
-        instruction: str,
-        labels: List,
-        model_name: str = "gpt-3.5-turbo",
-        api_key: str = None,
-        model_type: str = "openai",
-    ):
-        self.instruction = instruction
-        self.labels = labels
-        # Set up a parser + inject instructions into the prompt template.
-        self.parser = PydanticOutputParser(pydantic_object=LLMLabelerParser)
-        prompt = PromptTemplate(
-            template="{instruction}\n{labels}\n{format_instructions}\n",
-            input_variables=["instruction", "labels"],
-            partial_variables={
-                "format_instructions": self.parser.get_format_instructions()
-            },
-        )
-        system_message_prompt = SystemMessagePromptTemplate(prompt=prompt)
-        human_template = "{text}"
-        human_message_prompt = HumanMessagePromptTemplate.from_template(human_template)
-        self.chat_template = ChatPromptTemplate.from_messages(
-            [system_message_prompt, human_message_prompt]
-        )
-
-        if model_type == "azure":
-            raise NotImplementedError("Azure models are not supported yet")
-        elif model_type == "openai":
-            self.model = ChatOpenAI(
-                openai_api_key=api_key,
-                model_name=model_name,
-                temperature=0,
-                max_tokens=50,
-            )
-        else:
-            raise ValueError(f"Model type {model_type} is not supported")
-
-    def parse(self, text: str):
-        for label in self.labels:
-            match = re.search(
-                r"\{.*\}", text.strip(), re.MULTILINE | re.IGNORECASE | re.DOTALL
-            )
-            match = re.search(label, text)
-            if bool(match):
-                return label
-        return None
-
-    def cost_info(self, cb: OpenAICallbackHandler):
-        return dict(
-            prompt_tokens=cb.prompt_tokens,
-            completion_tokens=cb.completion_tokens,
-            total_cost=cb.total_cost,
-        )
-
-    def __call__(self, text: str):
-        messages = self.chat_template.format_prompt(
-            instruction=self.instruction, labels=self.labels, text=text
-        ).to_messages()
-        cost_info = None
-        with get_openai_callback() as cb:
-            output = self.model(messages)
-            cost_info = self.cost_info(cb)
-        label = self.parse(output.content)
-        if not label:
-            print("label not found!")
-            raise Exception("Label not found")
-        return label, cost_info
-
 
 instruction = f"""Determine the following code's quality value for a software engineer whose goal is to improve their programming ability.
 High quality code has the following:
@@ -121,8 +33,54 @@ Low quality code has the following:
 * Neglects design principles: The code shows a lack of consideration for design principles, making it harder to comprehend, maintain, and extend.
 
 Output nothing other than one of the following labels:
+{0}
 """
 
+
+class LLMLabeler:
+    def __init__(
+        self,
+        instruction: str,
+        labels: List,
+    ):
+        self.instruction = instruction
+        self.labels = labels
+
+    def parse_label(self, text: str):
+        for label in self.labels:
+            pattern = re.compile(re.escape(label), re.IGNORECASE | re.MULTILINE)
+            match = re.search(pattern, text)
+            if bool(match):
+                return label
+        return None
+
+    def cost_info(self, oai_response):
+        prompt_tokens = oai_response["usage"]["prompt_tokens"]
+        completion_tokens = oai_response["usage"]["completion_tokens"]
+        total_cost=0.0015 * prompt_tokens + 0.0002 * completion_tokens
+
+        return dict(
+            total_cost=total_cost,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+        )
+
+    def __call__(self, text: str):
+        formatted_instruction = instruction.format(self.labels)
+        completion = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",
+            temperature=0,
+            messages=[
+                {"role": "system", "content": formatted_instruction},
+                {"role": "user", "content": text},
+            ],
+        )
+        output_text = completion["choices"][0]["message"]["content"]
+        label = self.parse_label(output_text)
+        cost_info = self.cost_info(completion)
+        if not label:
+            raise Exception(f"Label not found in text: {output_text}")
+        return label, cost_info
 
 
 def train_labeler(

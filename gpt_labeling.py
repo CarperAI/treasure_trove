@@ -14,9 +14,12 @@ lang = "python"
 processed_subsets = []
 max_chars = 4_096
 num_workers = 8
+labeler = LLMLabeler(instruction, labels, model_name="gpt-3.5-turbo", api_key=api_key)
+res = labeler("def create()")
+print(res)
 
-buffer_size = 1_000
-chunk_size = 50
+buffer_size = 10_000
+chunks_to_process = 10
 
 print("Loading dataset..")
 dataset = load_dataset(
@@ -26,16 +29,13 @@ dataset = load_dataset(
 )["train"]
 print("Loaded dataset.")
 
-subset = dataset.shuffle(seed=115, buffer_size=buffer_size)
-
-chunks_to_process = buffer_size // chunk_size
+subset = dataset.shuffle(seed=100, buffer_size=buffer_size)
 
 subset_save_interval = 100
 
 total_cost = 0
 max_failures = 5
 failures = 0
-labeler = LLMLabeler(instruction, labels, model_name="gpt-3.5-turbo", api_key=api_key)
 
 ckpt_dir = "./checkpoints"
 Path(ckpt_dir).mkdir(exist_ok=True)
