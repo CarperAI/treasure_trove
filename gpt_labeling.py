@@ -29,7 +29,7 @@ dataset = load_dataset(
 )["train"]
 print("Loaded dataset.")
 
-subset = dataset.shuffle(seed=100, buffer_size=buffer_size)
+subset = dataset.shuffle(seed=110, buffer_size=buffer_size)
 
 subset_save_interval = 100
 

@@ -41,13 +41,15 @@ class LLMLabeler:
     def __init__(
         self,
         instruction: str,
-        labels: List,
+        labels: List[str],
+        secondary_labels: List[str],
     ):
         self.instruction = instruction
         self.labels = labels
+        self.secondary_labels = secondary_labels
 
-    def parse_label(self, text: str):
-        for label in self.labels:
+    def find_label(self, text: str, labels: List[str]):
+        for label in labels:
             pattern = re.compile(re.escape(label), re.IGNORECASE | re.MULTILINE)
             match = re.search(pattern, text)
             if bool(match):
@@ -57,7 +59,7 @@ class LLMLabeler:
     def cost_info(self, oai_response):
         prompt_tokens = oai_response["usage"]["prompt_tokens"]
         completion_tokens = oai_response["usage"]["completion_tokens"]
-        total_cost=0.0015 * prompt_tokens + 0.0002 * completion_tokens
+        total_cost = 0.0015 * prompt_tokens + 0.0002 * completion_tokens
 
         return dict(
             total_cost=total_cost,
@@ -76,7 +78,9 @@ class LLMLabeler:
             ],
         )
         output_text = completion["choices"][0]["message"]["content"]
-        label = self.parse_label(output_text)
+        label = self.find_label(output_text, self.labels)
+        if not label:
+            label = self.find_label(output_text, self.secondary_labels)
         cost_info = self.cost_info(completion)
         if not label:
             raise Exception(f"Label not found in text: {output_text}")
