@@ -30,10 +30,15 @@ subset = dataset.shuffle(seed=115, buffer_size=buffer_size)
 
 chunks_to_process = buffer_size // chunk_size
 
+subset_save_interval = 100
+
 total_cost = 0
 max_failures = 5
 failures = 0
 labeler = LLMLabeler(instruction, labels, model_name="gpt-3.5-turbo", api_key=api_key)
+
+ckpt_dir = "./checkpoints"
+Path(ckpt_dir).mkdir(exist_ok=True)
 
 for chunk in range(chunks_to_process):
     print(f"Chunk {chunk} / {chunks_to_process} starting...")
@@ -63,15 +68,15 @@ for chunk in range(chunks_to_process):
             processed_rows.append({**x, "label": label, "language": lang})
         else:
             print(f"Max failures hit on idx {i}, continuing.")
+        if i % subset_save_interval == 0:
+            subset_ds = Dataset.from_list(processed_rows)
+            subset_ds.save_to_disk(os.path.join(ckpt_dir, f"chunk_{chunk}_subset_{i}"))
+            subset_ds.push_to_hub("roborovski/phi-1", private=True)
 
-    subset_ds = Dataset.from_list(processed_rows)
-    processed_subsets.append(subset_ds)
-
+    processed_subsets.append(processed_rows)
     # Save all processed data
     all_datasets: Dataset = concatenate_datasets(processed_subsets)
-    ckpt_dir = "./checkpoints"
-    Path(ckpt_dir).mkdir(exist_ok=True)
-    all_datasets.save_to_disk(ckpt_dir + "/latest")
+    all_datasets.save_to_disk(os.path.join(ckpt_dir, "latest"))
     all_datasets.push_to_hub("roborovski/phi-1", private=True)
 
     # print number of each class
