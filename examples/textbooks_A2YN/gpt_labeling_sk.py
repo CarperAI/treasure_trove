@@ -3,7 +3,7 @@ import re
 import ast
 from datasets import concatenate_datasets, load_dataset
 from squeakily.helpers import LLMLabeler
-from treasure_trove.core import label_dataset
+from treasure_trove.core import label_dataset, label_dataset_sk, sk_function
 
 import semantic_kernel as sk
 import semantic_kernel.connectors.ai.open_ai as sk_oai
@@ -19,22 +19,29 @@ kernel.add_text_completion_service(
 )
 
 skills_dir = os.getcwd() + "/skills"
-annotation_skills = kernel.import_semantic_skill_from_directory(skills_dir, "annotation")
-annotation_function = annotation_skills["gpt_labeling"]
+skill_category = "annotation"
+func_name = "gpt_labeling"
+skfunction = sk_function(skills_dir, skill_category, func_name)
 
-annotation_context = kernel.create_new_context()
+skfunction_context = kernel.create_new_context()
 
-# Single example without function, should be integrated with label_dataset and classify
+labels = ["high quality", "medium quality", "low quality"]
 languages = ["python", "go", "java", "javascript", "c", "c++"]
 subsets = []
 for lang in languages:
-    annotation_context['code'] 
-    ds = load_dataset("bigcode/the-stack-smol", data_dir=f"data/{lang}")["train"]
+    ds = label_dataset("bigcode/the-stack-smol", data_dir=f"data/{lang}")["train"]
     sample = 50 / len(ds)
-    ds.shuffle(seed=115).select(range(int(len(ds) * sample)))
-    evalutation = annotation_function(context=annotation_context)
-    evaluation = re.sub('\s+', ' ', evaluation.result).replace('\n', '')
-    eval_ast = ast.literal_eval(evaluation)
-    rationale = eval_ast['rationale']
-    label = eval_ast['evaluation']
-    #....
+    subset = label_dataset_sk(ds, "content", labels, skfunction, sample=sample, num_workers=8)
+    new_column = [lang] * len(subset)
+    subset = subset.add_column("language", new_column)
+    subsets.append(subset)
+
+labeled_ds = concatenate_datasets(subsets)
+
+# upload to huggingface
+labeled_ds.push_to_hub("CarperAI/textbooks_A2YN_labeled_six_languages", private=True)
+
+# print number of each class
+print(f"Number of {labels[0]}: {len(labeled_ds.filter(lambda x: x['label'] == 0))}")
+print(f"Number of {labels[1]}: {len(labeled_ds.filter(lambda x: x['label'] == 1))}")
+print(f"Number of {labels[2]}: {len(labeled_ds.filter(lambda x: x['label'] == 2))}")
