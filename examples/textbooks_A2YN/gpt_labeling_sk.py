@@ -2,9 +2,7 @@ import os
 import re
 import ast
 from datasets import concatenate_datasets, load_dataset
-from squeakily.helpers import LLMLabeler
-from treasure_trove.core import label_dataset, label_dataset_sk, sk_function
-
+from treasure_trove.core_sk import label_dataset_sk, sk_function
 import semantic_kernel as sk
 import semantic_kernel.connectors.ai.open_ai as sk_oai
 from semantic_kernel.connectors.ai.open_ai import AzureChatCompletion
@@ -29,7 +27,7 @@ labels = ["high quality", "medium quality", "low quality"]
 languages = ["python", "go", "java", "javascript", "c", "c++"]
 subsets = []
 for lang in languages:
-    ds = label_dataset("bigcode/the-stack-smol", data_dir=f"data/{lang}")["train"]
+    ds = load_dataset("bigcode/the-stack-smol", data_dir=f"data/{lang}")["train"]
     sample = 50 / len(ds)
     subset = label_dataset_sk(ds, "content", labels, skfunction, sample=sample, num_workers=8)
     new_column = [lang] * len(subset)

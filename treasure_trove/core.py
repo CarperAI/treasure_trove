@@ -6,10 +6,7 @@ __all__ = ['classify', 'label_dataset', 'train_labeler', 'filter_dataset']
 # %% ../nbs/00_core.ipynb 2
 import evaluate
 import time
-import re
 import numpy as np
-import ast
-import sk
 
 from transformers import (
     AutoModelForSequenceClassification,
@@ -17,22 +14,6 @@ from transformers import (
     DataCollatorWithPadding,
     Trainer,
 )
-
-def sk_function(skills_dir: str, skill_category: str, func_name: str):
-    kernel = sk.kernel()
-    skills = kernel.import_semantic_skill_from_directory(skills_dir, skill_category)
-    function = skills[func_name]
-    return function
-
-def sk_code_eval(code: str, skfunction):
-    kernel = sk.kernel()
-    function_context = kernel.create_new_context()
-    function_context['code'] = code
-    code_eval = skfunction(context=function_context)
-    code_eval = re.sub('\s+', ' ', code_eval.result).replace('\n', '')
-    code_eval = ast.literal_eval(code_eval)
-    rationale, label = code_eval['rationale'], code_eval['evalaution']
-    return rationale, label
 
 # %% ../nbs/00_core.ipynb 4
 def classify(x, labels, llm_labeler, max_failures=5, default_label=0):
@@ -49,51 +30,6 @@ def classify(x, labels, llm_labeler, max_failures=5, default_label=0):
             pass
     if failures == max_failures:
         return default_label
-    
-def classify_sk(x, labels, skfunction, max_failures=5, default_label=0, default_rationale=None):
-    failures = 0
-    while failures < max_failures:
-        try:
-            rationale, label = sk_code_eval(x, skfunction)
-            label = labels.index(label)
-            time.sleep(1)
-            return {"label": label, "rationale": rationale}
-        except Exception as e:
-            failures += 1
-            print(e)
-            time.sleep(1)
-            pass
-    if failures == max_failures:
-        return {"label": default_label, "rationale": default_rationale}
-
-def label_dataset_sk(
-    dataset, text_column, labels, skfunction, sample=0.1, num_workers=4, max_chars=4096
-):
-    """
-    Filters a dataset using a labeler model.
-
-    Args:
-        dataset (datasets.Dataset): Dataset to filter
-        text_column (str): Name of the column containing the text to classify
-        labels (List[str]): List of labels
-        skfunction (Any): The semantic kernel annotation function
-        sample (float): The fraction of the dataset to label and use for filtering
-        batch_size (int): Batch size for labeling
-        num_workers (int): Number of workers for labeling
-        max_chars (int): Maximum number of characters to truncate the text to before labeling (reduces rate limiting errors)
-    """
-
-    # Get a subset of the dataset
-    subset = dataset.shuffle(seed=115).select(range(int(len(dataset) * sample)))
-
-    # Label the subset
-    subset = subset.map(
-        lambda x: classify_sk(x[text_column][:max_chars], labels, skfunction),
-        batched=False,
-        num_proc=num_workers,
-    )
-
-    return subset
 
 # %% ../nbs/00_core.ipynb 5
 def label_dataset(
