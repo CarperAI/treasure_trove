@@ -1,40 +1,45 @@
 import os
-
-from pydantic import BaseModel, Field
+from pathlib import Path
 
 from datasets import concatenate_datasets, load_dataset
-from typing import List
-from langchain.output_parsers import PydanticOutputParser
-from langchain.chat_models import AzureChatOpenAI, ChatOpenAI
-from langchain.prompts import PromptTemplate
-from langchain.prompts.chat import (
-    ChatPromptTemplate,
-    SystemMessagePromptTemplate,
-    HumanMessagePromptTemplate,
-)
 from dotenv import load_dotenv
-import time
 
-from treasure_trove.core import label_dataset
+from treasure_trove.core import classify
 
 load_dotenv(".env")
 labels = ["high quality", "medium quality", "low quality"]
-languages = ["python", "javascript"]
-subsets = []
-for lang in languages:
-    ds = load_dataset("bigcode/the-stack-smol", data_dir=f"data/{lang}")["train"]
-    sample = 50 / len(ds)
-    subset = label_dataset(ds, "content", labels, sample=sample, num_workers=1)
-    new_column = [lang] * len(subset)
-    subset = subset.add_column("language", new_column)
-    subsets.append(subset)
+lang = "python"
+processed_subsets = []
+max_chars = 4_096
+num_workers = 8
+epochs = 2
+buffer_size = 1000
+dataset = load_dataset(
+    "bigcode/the-stack-dedup", data_dir=f"data/{lang}", streaming=True
+)["train"]
+subset = dataset.shuffle(seed=115, buffer_size=buffer_size)
 
-labeled_ds = concatenate_datasets(subsets)
+for epoch in range(epochs):
+    subset.set_epoch(epoch)
 
-# upload to huggingface
-labeled_ds.push_to_hub("CarperAI/textbooks_A2YN_labeled_six_languages", private=True)
+    procesed = subset.map(
+        lambda x: {"label": classify(x["content"][:max_chars], labels)},
+        batched=False,
+    )
 
-# print number of each class
-print(f"Number of {labels[0]}: {len(labeled_ds.filter(lambda x: x['label'] == 0))}")
-print(f"Number of {labels[1]}: {len(labeled_ds.filter(lambda x: x['label'] == 1))}")
-print(f"Number of {labels[2]}: {len(labeled_ds.filter(lambda x: x['label'] == 2))}")
+    lang_column = [lang] * buffer_size
+    procesed = procesed.add_column("language", lang_column)
+    processed_subsets.append(procesed)
+
+    processed_ds = concatenate_datasets(processed_subsets)
+
+    # upload to huggingface
+    ckpt_dir = "./checkpoints"
+    Path(ckpt_dir).mkdir(exist_ok=True)
+    processed_ds.save_to_disk(ckpt_dir + "/latest")
+    processed_ds.push_to_hub("roborovski/phi-1", private=True)
+
+    # print number of each class
+    print(f"Number of {labels[0]}: {len(processed_ds.filter(lambda x: x['label'] == 0))}")
+    print(f"Number of {labels[1]}: {len(processed_ds.filter(lambda x: x['label'] == 1))}")
+    print(f"Number of {labels[2]}: {len(processed_ds.filter(lambda x: x['label'] == 2))}")

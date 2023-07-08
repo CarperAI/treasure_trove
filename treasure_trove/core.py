@@ -1,5 +1,6 @@
 import time
 import os
+import re
 
 import numpy as np
 
@@ -25,6 +26,7 @@ from typing import List
 from langchain.output_parsers import PydanticOutputParser
 from langchain.chat_models import AzureChatOpenAI, ChatOpenAI
 from langchain.prompts import PromptTemplate
+
 
 class LLMLabelerParser(BaseModel):
     labels: List = Field(
@@ -68,21 +70,29 @@ class LLMLabeler:
         else:
             raise ValueError(f"Model type {model_type} is not supported")
 
+    def parse(self, text: str):
+        for label in self.labels:
+            match = re.search(
+                r"\{.*\}", text.strip(), re.MULTILINE | re.IGNORECASE | re.DOTALL
+            )
+            match = re.search(label, text)
+            if bool(match):
+                return label
+        return None
+
     def __call__(self, text: str):
         messages = self.chat_template.format_prompt(
             instruction=self.instruction, labels=self.labels, text=text
         ).to_messages()
         output = self.model(messages)
-        print('model output', output.content)
-        if output.content in self.labels:
-            return [output]
-        predicted_labels = self.parser.parse(output.content)
-        print('pred labels', predicted_labels)
-        # check if all the predicted tags are in the list of tags
-        assert all(
-            [label in self.labels for label in predicted_labels.labels]
-        ), f"Predicted labels {predicted_labels.labels} are not in the list of tags {self.labels}"
-        return predicted_labels.labels
+        print("model output", output.content)
+        print(output)
+        label = self.parse(output.content)
+        if not label:
+            print("label not found!")
+            raise Exception("Label not found")
+        print("get label", label)
+        return label
 
 
 instruction = f"""Determine the following code's quality value for a software engineer whose goal is to improve their programming ability.
@@ -115,9 +125,10 @@ def classify(x, labels, max_failures=5, default_label=0):
 
     while failures < max_failures:
         try:
-            label = labeler(x)[0]
+            label = labeler(x)
             label_idx = labels.index(label)
             print(label, label_idx)
+            time.sleep(1)
             return label_idx
         except Exception as e:
             failures += 1
@@ -126,43 +137,6 @@ def classify(x, labels, max_failures=5, default_label=0):
             pass
     if failures == max_failures:
         return default_label
-
-
-def label_dataset(
-    dataset,
-    text_column,
-    labels,
-    sample=0.1,
-    num_workers=4,
-    max_chars=4_096,
-):
-    """
-    Filters a dataset using a labeler model.
-
-    Args:
-        dataset (datasets.Dataset): Dataset to filter
-        text_column (str): Name of the column containing the text to classify
-        labeler_model (Any): Model to use for labeling
-        labels (List[str]): List of labels
-        sample (float): The fraction of the dataset to label and use for filtering
-        batch_size (int): Batch size for labeling
-        num_workers (int): Number of workers for labeling
-        max_chars (int): Maximum number of characters to truncate the text to before labeling (reduces rate limiting errors)
-    """
-
-    # Get a subset of the dataset
-    subset = dataset.shuffle(seed=115).select(range(int(len(dataset) * sample)))
-
-    # Label the subset
-    subset = subset.map(
-        lambda x: {
-            "label": classify(x[text_column][:max_chars], labels)
-        },
-        batched=False,
-        num_proc=num_workers,
-    )
-
-    return subset
 
 
 def train_labeler(
