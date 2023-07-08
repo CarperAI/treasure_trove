@@ -1,8 +1,6 @@
 import time
-import os
 import re
-
-import numpy as np
+from dotenv import load_dotenv
 
 from transformers import (
     AutoModelForSequenceClassification,
@@ -17,7 +15,7 @@ from langchain.prompts.chat import (
 )
 from dotenv import load_dotenv
 import time
-
+from langchain.callbacks import get_openai_callback, OpenAICallbackHandler
 
 from pydantic import BaseModel, Field
 
@@ -65,7 +63,10 @@ class LLMLabeler:
             raise NotImplementedError("Azure models are not supported yet")
         elif model_type == "openai":
             self.model = ChatOpenAI(
-                openai_api_key=api_key, model_name=model_name, temperature=0
+                openai_api_key=api_key,
+                model_name=model_name,
+                temperature=0,
+                max_tokens=50,
             )
         else:
             raise ValueError(f"Model type {model_type} is not supported")
@@ -80,19 +81,26 @@ class LLMLabeler:
                 return label
         return None
 
+    def cost_info(self, cb: OpenAICallbackHandler):
+        return dict(
+            prompt_tokens=cb.prompt_tokens,
+            completion_tokens=cb.completion_tokens,
+            total_cost=cb.total_cost,
+        )
+
     def __call__(self, text: str):
         messages = self.chat_template.format_prompt(
             instruction=self.instruction, labels=self.labels, text=text
         ).to_messages()
-        output = self.model(messages)
-        print("model output", output.content)
-        print(output)
+        cost_info = None
+        with get_openai_callback() as cb:
+            output = self.model(messages)
+            cost_info = self.cost_info(cb)
         label = self.parse(output.content)
         if not label:
             print("label not found!")
             raise Exception("Label not found")
-        print("get label", label)
-        return label
+        return label, cost_info
 
 
 instruction = f"""Determine the following code's quality value for a software engineer whose goal is to improve their programming ability.
@@ -115,28 +123,6 @@ Low quality code has the following:
 Output nothing other than one of the following labels:
 """
 
-
-def classify(x, labels, max_failures=5, default_label=0):
-    failures = 0
-    api_key = os.environ["OPENAI_KEY"]
-    labeler = LLMLabeler(
-        instruction, labels, model_name="gpt-3.5-turbo", api_key=api_key
-    )
-
-    while failures < max_failures:
-        try:
-            label = labeler(x)
-            label_idx = labels.index(label)
-            print(label, label_idx)
-            time.sleep(1)
-            return label_idx
-        except Exception as e:
-            failures += 1
-            print(e)
-            time.sleep(1)
-            pass
-    if failures == max_failures:
-        return default_label
 
 
 def train_labeler(
