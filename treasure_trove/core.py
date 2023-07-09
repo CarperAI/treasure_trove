@@ -77,6 +77,8 @@ class LLMLabeler:
                 {"role": "user", "content": text},
             ],
         )
+        if "error" in completion:
+            return 0, None
         output_text = completion["choices"][0]["message"]["content"]
         label = self.find_label(output_text, self.labels)
         if not label:
@@ -84,7 +86,8 @@ class LLMLabeler:
         cost_info = self.cost_info(completion)
         if not label:
             raise Exception(f"Label not found in text: {output_text}")
-        return label, cost_info
+        label_idx = self.labels.index(label)
+        return label_idx, cost_info
 
 
 def train_labeler(

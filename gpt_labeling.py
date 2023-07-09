@@ -1,7 +1,7 @@
 import os
 from pathlib import Path
 
-from datasets import concatenate_datasets, load_dataset, IterableDataset, Dataset
+from datasets import concatenate_datasets, load_dataset, IterableDataset, Dataset, ReadInstruction
 from dotenv import load_dotenv
 
 import time
@@ -26,9 +26,6 @@ buffer_size = 500
 chunks_to_process = 20
 
 print("Loading dataset..")
-dataset = load_dataset("parquet", data_files={"train": "data-00000-of-00144.parquet"})[
-    "train"
-]
 print("Loaded dataset.")
 
 api_key = os.environ["OPENAI_KEY"]
@@ -47,31 +44,33 @@ def process(x):
     label_idx, cost_info = 0, {}
     while failures < max_failures:
         try:
-            label, cost_info = labeler(x["content"][:max_chars])
-            label_idx = labels.index(label)
-            print(label, label_idx)
+            label_idx, cost_info = labeler(x["content"][:max_chars])
             time.sleep(1)
             break
         except Exception as e:
             failures += 1
             print(e)
             time.sleep(1)
-    print(
-        f"classified {i}: {label} - tokens used: {cost_info['prompt_tokens']} | {cost_info['completion_tokens']}"
-    )
+    if cost_info:
+        print(
+            f"{label_idx} - tokens used: {cost_info['prompt_tokens']} | {cost_info['completion_tokens']}"
+        )
+    else:
+        print("row not classified.")
     return {"label": label_idx, "cost": cost_info["total_cost"]}
 
 
 processed_chunk_datasets = []
-start_idx = 1
+start_idx = 0
 
 for i in range(start_idx, start_idx + buffer_size, 1):
     print(f"Chunk {i} / {chunks_to_process + start_idx} starting...")
 
-    subset = dataset[i : i + buffer_size]
+    split = ReadInstruction("train", from_=start_idx*buffer_size, to=start_idx*1+buffer_size, unit="abs")
+    subset = load_dataset("parquet", split=split, data_files={"train": "data-00000-of-00144.parquet"})
 
     # Label the subset
-    subset = dataset.map(process, batched=False, num_proc=8)
+    subset = subset.map(process, batched=False, num_proc=4)
 
     processed_chunk_datasets.append(subset)
 
