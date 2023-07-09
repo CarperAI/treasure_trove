@@ -1,7 +1,13 @@
 import os
 from pathlib import Path
 
-from datasets import concatenate_datasets, load_dataset, IterableDataset, Dataset, ReadInstruction
+from datasets import (
+    concatenate_datasets,
+    load_dataset,
+    IterableDataset,
+    Dataset,
+    ReadInstruction,
+)
 from dotenv import load_dotenv
 
 import time
@@ -23,14 +29,12 @@ print(res)
 dataset_chunks = []
 
 buffer_size = 500
-chunks_to_process = 20
+num_chunks = 20
 
 print("Loading dataset..")
 print("Loaded dataset.")
 
 api_key = os.environ["OPENAI_KEY"]
-
-subset_save_interval = 100
 
 max_failures = 5
 failures = 0
@@ -41,6 +45,7 @@ Path(ckpt_dir).mkdir(exist_ok=True)
 
 def process(x):
     failures = 0
+    total_cost = 0
     label_idx, cost_info = 0, {}
     while failures < max_failures:
         try:
@@ -52,22 +57,25 @@ def process(x):
             print(e)
             time.sleep(1)
     if cost_info:
+        total_cost = cost_info["total_cost"]
         print(
             f"{label_idx} - tokens used: {cost_info['prompt_tokens']} | {cost_info['completion_tokens']} | {cost_info['total_cost']}"
         )
     else:
         print("row not classified.")
-    return {"label": label_idx, "cost": cost_info["total_cost"]}
+    return {"label": label_idx, "cost": total_cost}
 
 
 processed_chunk_datasets = []
-start_idx = 0
 
-for i in range(start_idx, start_idx + buffer_size, 1):
-    print(f"Chunk {i} / {chunks_to_process + start_idx} starting...")
-
-    split = ReadInstruction("train", from_=start_idx*buffer_size, to=start_idx*1+buffer_size, unit="abs")
-    subset = load_dataset("parquet", split=split, data_files={"train": "data-00000-of-00144.parquet"})
+for i in range(num_chunks):
+    split = ReadInstruction(
+        "train", from_=i * buffer_size, to=(i + 1) * buffer_size, unit="abs"
+    )
+    print(f"processing chunk {i}: {split}")
+    subset = load_dataset(
+        "parquet", split=split, data_files={"train": "data-00000-of-00144.parquet"}
+    )
 
     # Label the subset
     subset = subset.map(process, batched=False, num_proc=4)
@@ -77,9 +85,7 @@ for i in range(start_idx, start_idx + buffer_size, 1):
     all_datasets: Dataset = concatenate_datasets(processed_chunk_datasets)
     all_datasets.push_to_hub("roborovski/phi-1", private=True)
     all_datasets.to_parquet(
-        os.path.join(
-            ckpt_dir, f"processed_{start_idx}_to_{chunks_to_process+start_idx}"
-        )
+        os.path.join(ckpt_dir, f"processed_{start_idx}_to_{num_chunks+start_idx}")
     )
 
     # print number of each class
