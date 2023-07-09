@@ -49,11 +49,11 @@ class LLMLabeler:
         self.secondary_labels = secondary_labels
 
     def find_label(self, text: str, labels: List[str]):
-        for label in labels:
+        for i, label in enumerate(labels):
             pattern = re.compile(re.escape(label), re.IGNORECASE | re.MULTILINE)
             match = re.search(pattern, text)
             if bool(match):
-                return label
+                return i
         return None
 
     def cost_info(self, oai_response):
@@ -72,6 +72,7 @@ class LLMLabeler:
         completion = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
             temperature=0,
+            max_tokens=4,
             messages=[
                 {"role": "system", "content": formatted_instruction},
                 {"role": "user", "content": text},
@@ -80,13 +81,12 @@ class LLMLabeler:
         if "error" in completion:
             return 0, None
         output_text = completion["choices"][0]["message"]["content"]
-        label = self.find_label(output_text, self.labels)
-        if not label:
-            label = self.find_label(output_text, self.secondary_labels)
+        label_idx = self.find_label(output_text, self.labels)
+        if not label_idx:
+            label_idx = self.find_label(output_text, self.secondary_labels)
         cost_info = self.cost_info(completion)
-        if not label:
+        if not label_idx:
             raise Exception(f"Label not found in text: {output_text}")
-        label_idx = self.labels.index(label)
         return label_idx, cost_info
 
 

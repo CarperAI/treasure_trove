@@ -53,7 +53,7 @@ def process(x):
             time.sleep(1)
     if cost_info:
         print(
-            f"{label_idx} - tokens used: {cost_info['prompt_tokens']} | {cost_info['completion_tokens']}"
+            f"{label_idx} - tokens used: {cost_info['prompt_tokens']} | {cost_info['completion_tokens']} | {cost_info['total_cost']}"
         )
     else:
         print("row not classified.")
