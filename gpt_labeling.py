@@ -83,10 +83,13 @@ for i in range(num_chunks):
     processed_chunk_datasets.append(subset)
 
     all_datasets: Dataset = concatenate_datasets(processed_chunk_datasets)
-    all_datasets.push_to_hub("roborovski/phi-1", private=True)
-    all_datasets.to_parquet(
-        os.path.join(ckpt_dir, f"processed_{i}")
-    )
+    try:
+        all_datasets.push_to_hub("roborovski/phi-1", private=True)
+        all_datasets.to_parquet(
+            os.path.join(ckpt_dir, f"processed_{i}")
+        )
+    except Exception as e:
+        print(e)
 
     # print number of each class
     print(
