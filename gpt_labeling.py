@@ -85,7 +85,7 @@ for i in range(num_chunks):
     all_datasets: Dataset = concatenate_datasets(processed_chunk_datasets)
     all_datasets.push_to_hub("roborovski/phi-1", private=True)
     all_datasets.to_parquet(
-        os.path.join(ckpt_dir, f"processed_{start_idx}_to_{num_chunks+start_idx}")
+        os.path.join(ckpt_dir, f"processed_{i}")
     )
 
     # print number of each class
