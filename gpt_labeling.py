@@ -29,7 +29,7 @@ print(res)
 dataset_chunks = []
 
 buffer_size = 500
-num_chunks = 20
+num_chunks = 100
 
 print("Loading dataset..")
 print("Loaded dataset.")
@@ -68,10 +68,15 @@ def process(x):
 
 processed_chunk_datasets = []
 
+first_save_idx = 8000
+
 for i in range(num_chunks):
     split = ReadInstruction(
         "train", from_=i * buffer_size, to=(i + 1) * buffer_size, unit="abs"
     )
+    # if i < first_save_idx // buffer_size:
+    #     print(f"skipping chunk {i}: {split}")
+    #     continue
     print(f"processing chunk {i}: {split}")
     subset = load_dataset(
         "parquet", split=split, data_files={"train": "data-00000-of-00144.parquet"}
@@ -82,22 +87,21 @@ for i in range(num_chunks):
 
     processed_chunk_datasets.append(subset)
 
-    all_datasets: Dataset = concatenate_datasets(processed_chunk_datasets)
-    try:
-        all_datasets.push_to_hub("roborovski/phi-1", private=True)
-        all_datasets.to_parquet(
-            os.path.join(ckpt_dir, f"processed_{i}")
-        )
-    except Exception as e:
-        print(e)
+    if i > first_save_idx // buffer_size:
+        all_datasets: Dataset = concatenate_datasets(processed_chunk_datasets)
+        try:
+            all_datasets.push_to_hub("roborovski/phi-1", private=True)
+            all_datasets.to_parquet(os.path.join(ckpt_dir, f"processed_{i}"))
+        except Exception as e:
+            print(e)
 
-    # print number of each class
-    print(
-        f"Number of {labels[0]}: {len(all_datasets.filter(lambda x: x['label'] == 0))}"
-    )
-    print(
-        f"Number of {labels[1]}: {len(all_datasets.filter(lambda x: x['label'] == 1))}"
-    )
-    print(
-        f"Number of {labels[2]}: {len(all_datasets.filter(lambda x: x['label'] == 2))}"
-    )
+        # print number of each class
+        print(
+            f"Number of {labels[0]}: {len(all_datasets.filter(lambda x: x['label'] == 0))}"
+        )
+        print(
+            f"Number of {labels[1]}: {len(all_datasets.filter(lambda x: x['label'] == 1))}"
+        )
+        print(
+            f"Number of {labels[2]}: {len(all_datasets.filter(lambda x: x['label'] == 2))}"
+        )
