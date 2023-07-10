@@ -5,6 +5,7 @@ __all__ = ['classify', 'label_dataset', 'train_labeler', 'filter_dataset']
 
 # %% ../nbs/00_core.ipynb 2
 import evaluate
+import random
 import time
 
 import numpy as np
@@ -18,6 +19,9 @@ from transformers import (
 
 # %% ../nbs/00_core.ipynb 4
 def classify(x, labels, llm_labeler, max_failures=5, default_label=0):
+    # do random sleep to avoid rate limiting
+    num_sleep = random.randint(0, 5)
+    time.sleep(num_sleep)
     failures = 0
     while failures < max_failures:
         try:
