@@ -1,0 +1,9 @@
+accelerate
+datasets
+evaluate
+fastcore
+openai
+transformers
+python-dotenv
+pandas
+wandb
