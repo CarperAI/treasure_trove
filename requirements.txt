@@ -6,3 +6,4 @@ openai
 transformers
 python-dotenv
 pandas
+wandb

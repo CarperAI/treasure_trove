@@ -1,5 +1,8 @@
 from datasets import load_dataset
 from transformers import pipeline, TrainingArguments
+import evaluate
+import numpy as np
+import wandb
 
 from transformers import (
     AutoModelForSequenceClassification,
@@ -41,14 +44,25 @@ dataset = dataset.train_test_split(test_size=0.1, seed=42)
 
 data_collator = DataCollatorWithPadding(tokenizer=tokenizer)
 
+metric = evaluate.load("accuracy")
+
+def compute_metrics(eval_pred):
+    logits, labels = eval_pred
+    predictions = np.argmax(logits, axis=-1)
+    return metric.compute(predictions=predictions, references=labels)
+
+wandb.login()
+
+wandb.init(project="phi-2-classifier")
+
 training_args = TrainingArguments(
-    output_dir="./code_edu",
+    output_dir="checkpoints",
     num_train_epochs=3,
     per_device_train_batch_size=batch_size,
     per_device_eval_batch_size=batch_size,
     warmup_steps=500,
     weight_decay=0.01,
-    logging_dir="./logs",
+    logging_dir="logs",
     logging_steps=10,
     evaluation_strategy="epoch",
     save_strategy="epoch",
@@ -68,9 +82,8 @@ trainer = Trainer(
     train_dataset=dataset["train"],
     eval_dataset=dataset["test"],
     data_collator=data_collator,
+    compute_metrics=compute_metrics,
 )
-
-breakpoint()
 
 trainer.train()
 
