@@ -40,7 +40,9 @@ dataset = dataset.map(
     num_proc=num_workers,
 )
 
-dataset = dataset.train_test_split(test_size=0.1, seed=42)
+dataset = dataset.train_test_split(test_size=0.05, seed=42)
+
+eval_dataset = dataset["test"].shuffle(seed=42).select(range(200))
 
 data_collator = DataCollatorWithPadding(tokenizer=tokenizer)
 
@@ -59,7 +61,7 @@ training_args = TrainingArguments(
     output_dir="checkpoints",
     num_train_epochs=3,
     per_device_train_batch_size=batch_size,
-    per_device_eval_batch_size=batch_size,
+    per_device_eval_batch_size=2,
     warmup_steps=500,
     weight_decay=0.01,
     logging_dir="logs",
@@ -73,6 +75,7 @@ training_args = TrainingArguments(
     push_to_hub=True,
     hub_model_id="roborovski/phi-2-classifier",
     hub_private_repo=True,
+    eval_accumulation_steps=2
 )
 
 
@@ -80,7 +83,7 @@ trainer = Trainer(
     model=model,
     args=training_args,
     train_dataset=dataset["train"],
-    eval_dataset=dataset["test"],
+    eval_dataset=eval_dataset,
     data_collator=data_collator,
     compute_metrics=compute_metrics,
 )
