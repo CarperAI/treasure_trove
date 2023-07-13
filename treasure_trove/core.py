@@ -71,11 +71,12 @@ def train_labeler(
     dataset,
     text_column,
     base_model_name,
-    n_labels,
+    labels,
     training_args,
+    test_set_size=0.05,
     num_workers=4,
     max_length=512,
-    push_to_hub=True,
+    push_to_hub=False,
 ):
     """
     Trains a labeler model on a labeled dataset.
@@ -84,9 +85,9 @@ def train_labeler(
         dataset (datasets.Dataset): Dataset to train on
         text_column (str): Name of the text column
         base_model_name (str): Name of the base model to use
-        n_labels (int): Number of labels
-        epochs (int): Number of epochs to train
-        batch_size (int): Batch size for training
+        labels (list): List of labels
+        training_args (transformers.TrainingArguments): Training arguments
+        test_set_size (float): Fraction of the dataset to use for testing
         num_workers (int): Number of workers for training
         max_length (int): Maximum length of the input
     """
@@ -97,9 +98,9 @@ def train_labeler(
 
     # Load the model
     model = AutoModelForSequenceClassification.from_pretrained(
-        base_model_name, num_labels=n_labels, max_length=max_length
+        base_model_name, num_labels=len(labels), max_length=max_length
     )
-    model.config.id2label = {i: i for i in range(n_labels)}
+    model.config.id2label = {i: label for i, label in enumerate(labels)}
 
     # Preprocess the dataset
     dataset = dataset.map(
@@ -111,19 +112,26 @@ def train_labeler(
     )
 
     # Split the dataset
-    dataset = dataset.train_test_split(test_size=0.1, seed=42)
+    dataset = dataset.train_test_split(test_size=test_set_size, seed=115)
 
     # Get the data collator
     data_collator = DataCollatorWithPadding(tokenizer=tokenizer)
 
     def compute_metrics(eval_preds):
-        metric = evaluate.load("glue", "mrpc")
+        acc_metric = evaluate.load("accuracy")
+        precision_metric = evaluate.load("precision")
+        recall_metric = evaluate.load("recall")
+        f1_metric = evaluate.load("f1")
         logits, labels = eval_preds
         if isinstance(logits, tuple): # Some models return tuples
             logits = logits[0]
-        print(logits.shape, labels)
+            
         predictions = np.argmax(logits, axis=-1)
-        return metric.compute(predictions=predictions, references=labels)
+        acc = acc_metric.compute(predictions=predictions, references=labels)
+        precision = precision_metric.compute(predictions=predictions, references=labels, average="macro" if len(labels) > 2 else "binary")
+        recall = recall_metric.compute(predictions=predictions, references=labels, average="macro" if len(labels) > 2 else "binary")
+        f1 = f1_metric.compute(predictions=predictions, references=labels, average="macro" if len(labels) > 2 else "binary")
+        return {**acc, **precision, **recall, **f1}
 
     # Get the trainer
     trainer = Trainer(
