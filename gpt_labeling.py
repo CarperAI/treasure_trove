@@ -24,8 +24,6 @@ labeler = LLMLabeler(
     labels,
     secondary_labels=secondary_labels,
 )
-res = labeler("def create()")
-print(res)
 dataset_chunks = []
 
 buffer_size = 500
