@@ -188,5 +188,5 @@ def process(x):
 
 # process(dataset["train"][0])
 
-processed_dataset = dataset.map(process, batched=True)
+processed_dataset = dataset.map(process, batched=True, batch_size=128)
 processed_dataset.push_to_hub("roborovski/phi-2-embeddings")
