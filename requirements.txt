@@ -7,3 +7,4 @@ transformers
 python-dotenv
 pandas
 wandb
+huggingface_hub

@@ -4,6 +4,9 @@ from transformers import pipeline, TrainingArguments
 import evaluate
 import numpy as np
 import wandb
+from dotenv import load_dotenv
+from huggingface_hub import login
+import os
 
 from transformers import (
     AutoModelForSequenceClassification,
@@ -12,11 +15,14 @@ from transformers import (
     Trainer,
 )
 
+load_dotenv(".env")
+
+login(token=os.environ["HF_KEY"], add_to_git_credential=True)
 
 @dataclass
 class EncoderParams:
     batch_size = 32
-    num_workers = 4
+    num_workers = 16
     push_to_hub = True
     n_labels = 3
     text_column = "content"
@@ -28,14 +34,13 @@ class EncoderParams:
     SEPARATOR_TOKEN = "<sep>"
     PAD_TOKEN = "<pad>"
     CLS_TOKEN = "<cls>"
-    max_input_length = 10000
+    max_input_length = 1024
     max_token_length = 1024
 
 
 def train():
 
-    dataset = load_dataset("roborovski/phi-1")["train"]
-
+    dataset = load_dataset("roborovski/phi-2-labeled")["train"]
 
     tokenizer = AutoTokenizer.from_pretrained(
         EncoderParams.base_model_name, max_length=EncoderParams.max_token_length
@@ -51,10 +56,11 @@ def train():
         label2id=EncoderParams.label2id,
     )
 
+    sample_table_data = []
 
     def compute_metrics(eval_pred):
         logits, labels = eval_pred
-        if isinstance(logits, tuple):  # Some models return tuples
+        if isinstance(logits, tuple):
             logits = logits[0]
         predictions = np.argmax(logits, axis=-1)
         acc = acc_metric.compute(predictions=predictions, references=labels)
@@ -73,6 +79,14 @@ def train():
             references=labels,
             average="macro" if len(labels) > 2 else "binary",
         )
+
+        decoded_sample = tokenizer.decode(predictions)
+        sample_table_data.append([decoded_sample, labels[0]])
+        sample_table = wandb.Table(
+            columns=["sample", "label"],
+            data=sample_table_data,
+        )
+        wandb.log({"sample": sample_table})
 
         return {**acc, **precision, **recall, **f1}
 
