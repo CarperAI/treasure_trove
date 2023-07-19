@@ -157,3 +157,5 @@ checklink/cookies.txt
 checkpoints/
 
 wandb/*
+
+*.parquet

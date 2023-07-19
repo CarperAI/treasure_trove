@@ -11,7 +11,7 @@ from datasets import (
 from dotenv import load_dotenv
 
 import time
-from treasure_trove.core import LLMLabeler, instruction
+from treasure_trove.core import ChatGPTLabeler, instruction
 
 load_dotenv(".env")
 labels = ["high quality", "medium quality", "low quality"]
@@ -19,7 +19,7 @@ secondary_labels = ["high", "medium", "low"]
 lang = "python"
 max_chars = 4_096
 num_workers = 8
-labeler = LLMLabeler(
+labeler = ChatGPTLabeler(
     instruction,
     labels,
     secondary_labels=secondary_labels,
