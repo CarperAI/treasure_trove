@@ -176,6 +176,10 @@ def filter_dataset(
             "score": [l["score"] for l in predicted],
         }
 
+
+    # TODO: first just label the dataset with scores and everything
+    # then just split the dataset into the number of subsets and configs so that people can specify which one they want
+
     # Label the dataset
     dataset = dataset.map(
         lambda x: label(x[text_column]),
